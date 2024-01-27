@@ -1,6 +1,7 @@
 blueprint:
   name: Room Occupancy v7.0 -
   description: Persistant Motion timers
+  source_url: https://github.com/maxgyver87/Room-Occupancy-v7.0
   domain: automation
   input:
     room_occupancy_sensor:

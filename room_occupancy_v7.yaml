@@ -1,0 +1,198 @@
+blueprint:
+  name: Room Occupancy v7.0 -
+  description: Persistant Motion timers
+  domain: automation
+  input:
+    room_occupancy_sensor:
+      name: (REQUIRED) Motion Sensor
+      description: This binary sensor will be used to trigger lights.
+      selector:
+        entity:
+          multiple: false
+          domain:
+            - binary_sensor
+            - input_boolean
+            - switch
+    on_condition:
+      name: (OPTIONAL) Condition to turn ON
+      default: []
+      selector:
+        condition:
+    off_condition:
+      name: (OPTIONAL) Condition to >NOT< turn OFF & wait to PASS
+      default: []
+      selector:
+        condition:
+    target_entity:
+      name: (REQUIRED) Target
+      description: The entities to turn ON and OFF\n- (Lights/Switches/Scripts/Scenes)
+      default: []
+      selector:
+        target:
+          entity:
+            domain: light
+
+#    target_entity:
+#      name: (REQUIRED) Target
+#      description: The light entities to turn ON and OFF\n- (Lights)
+#      selector:
+#        entity:
+#          multiple: true
+#          domain:
+#          - light
+    brightness:
+      name: (OPTIONAL) Brightness %
+      description: Brightness of the light(s) when turning on
+      default: []
+      selector:
+        number:
+          min: 0.0
+          max: 100.0
+          mode: slider
+          step: 1.0
+          unit_of_measurement: '%'
+    color_temp:
+      name: Color Temperature
+      description: Choose color Temperature
+      default: []
+      selector:
+        color_temp:
+    on_transition:
+      name: On Transition Time
+      description: Transition time of the light(s) to turning on
+      default: []
+      selector:
+        number:
+          min: 0.0
+          max: 10.0
+          mode: slider
+          step: 1.0
+          unit_of_measurement: 'sec'
+    off_transition:
+      name: Off Transition Time
+      description: Transition time of the light(s) to turning on
+      default: []
+      selector:
+        number:
+          min: 0.0
+          max: 10.0
+          mode: slider
+          step: 1.0
+          unit_of_measurement: 'sec'
+    room_timer:
+      name: (REQUIRED) Timer
+      description: The timer entity to turn off lights.
+      selector:
+        entity:
+          multiple: false
+          domain: timer
+    room_timer_duration:
+      name: (REQUIRED) Timer Duration
+      default:
+        hours: 0
+        minutes: 10
+        seconds: 0
+      description: The time in minuites the light should turn off after no motion is detected example 10min-> 00:10:00
+      selector:
+        duration:
+    blocker_entity:
+      name: (OPTIONAL) Blocking entity
+      description: If this entity's state is on, it will prevent the automation from
+        running. E.g. sleepmode or away mode.
+      default: []
+      selector:
+        condition:
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  on_condition: !input on_condition
+  off_condition: !input off_condition
+
+trigger:
+  - platform: state
+    entity_id: input_button.test_button
+    id: motion_detected
+#  - platform: state
+#    entity_id:
+#      - !input target_entity # not working try a variable or template
+#    to: "off"
+#    id: light_off
+  - platform: state
+    entity_id:
+      - !input room_occupancy_sensor
+    to: "on"
+    id: motion_detected
+  - platform: state
+    entity_id:
+      - !input room_occupancy_sensor
+    to: "off"
+    id: timer_start
+  - platform: event
+    event_type: timer.finished
+    event_data:
+      entity_id: !input room_timer
+    id: timer_done
+
+condition:
+  - condition: not
+    conditions:
+      !input blocker_entity
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - motion_detected
+          - condition: and
+            conditions:
+             !input on_condition
+        sequence:
+          - service: light.turn_on
+            target: !input target_entity
+            data:
+              transition: !input on_transition
+              color_temp: !input color_temp
+              brightness_pct: !input brightness
+          - service: timer.cancel
+            target:
+              entity_id:
+                - !input room_timer
+      - conditions:
+          - condition: trigger
+            id:
+              - light_off
+        sequence:
+          - service: timer.cancel
+            target:
+              entity_id:
+                - !input room_timer
+
+      - conditions:
+          - condition: trigger
+            id:
+              - timer_start
+          - condition: and
+            conditions:
+              !input off_condition
+        sequence:
+          - service: timer.start
+            data:
+              duration: !input room_timer_duration
+            target:
+              entity_id:
+                - !input room_timer
+
+      - conditions:
+          - condition: trigger
+            id:
+              - timer_done
+        sequence:
+#          - service: homeassistant.turn_off
+#            target: !input target_entity
+          - service: light.turn_off
+            data:
+              transition: !input off_transition
+            target: !input target_entity

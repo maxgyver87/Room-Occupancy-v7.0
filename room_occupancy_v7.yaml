@@ -32,15 +32,6 @@ blueprint:
         target:
           entity:
             domain: light
-
-#    target_entity:
-#      name: (REQUIRED) Target
-#      description: The light entities to turn ON and OFF\n- (Lights)
-#      selector:
-#        entity:
-#          multiple: true
-#          domain:
-#          - light
     brightness:
       name: (OPTIONAL) Brightness %
       description: Brightness of the light(s) when turning on
@@ -52,12 +43,6 @@ blueprint:
           mode: slider
           step: 1.0
           unit_of_measurement: '%'
-    color_temp:
-      name: Color Temperature
-      description: Choose color Temperature
-      default: []
-      selector:
-        color_temp:
     on_transition:
       name: On Transition Time
       description: Transition time of the light(s) to turning on
@@ -108,18 +93,20 @@ mode: restart
 max_exceeded: silent
 
 variables:
-  on_condition: !input on_condition
-  off_condition: !input off_condition
+  brightness: !input brightness
+  on_transition: !input on_transition
+  off_transition: !input off_transition
+
+
+
+
+
+
 
 trigger:
   - platform: state
     entity_id: input_button.test_button
     id: motion_detected
-#  - platform: state
-#    entity_id:
-#      - !input target_entity # not working try a variable or template
-#    to: "off"
-#    id: light_off
   - platform: state
     entity_id:
       - !input room_occupancy_sensor
@@ -153,10 +140,16 @@ action:
         sequence:
           - service: light.turn_on
             target: !input target_entity
-            data:
-              transition: !input on_transition
-              color_temp: !input color_temp
-              brightness_pct: !input brightness
+            data: |
+                {% if (True if is_number(brightness) and is_number(on_transition) else False) %}
+                  {{ { "transition": on_transition, "brightness": brightness } }}
+                {% elif (True if is_number(brightness) else False) %}
+                  {{ { "brightness": brightness } }}
+                {% elif (True if is_number(on_transition) else False) %}
+                  {{ { "transition": on_transition } }}
+                {% else %}
+                  {{ {} }}
+                {% endif %}
           - service: timer.cancel
             target:
               entity_id:
@@ -170,7 +163,6 @@ action:
             target:
               entity_id:
                 - !input room_timer
-
       - conditions:
           - condition: trigger
             id:
@@ -185,15 +177,17 @@ action:
             target:
               entity_id:
                 - !input room_timer
-
       - conditions:
           - condition: trigger
             id:
               - timer_done
         sequence:
-#          - service: homeassistant.turn_off
-#            target: !input target_entity
           - service: light.turn_off
-            data:
-              transition: !input off_transition
+            data: |
+                {% if (True if is_number(off_transition) else False) %}
+                  {{ { "transition": off_transition } }}
+                {% else %}
+                  {{ {} }}
+                {% endif %}
             target: !input target_entity
+
